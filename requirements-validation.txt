@@ -1,0 +1,2 @@
+astropy>=6.0
+pint-pulsar>=1.1

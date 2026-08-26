@@ -1,0 +1,5 @@
+-r requirements.txt
+# On minimal Linux desktops, install the Qt/XCB system libraries required by PySide6.
+# Optional fast plotting: pip install -r requirements-fastplot.txt
+# Optional scientific validation:
+# pip install -r requirements-validation.txt

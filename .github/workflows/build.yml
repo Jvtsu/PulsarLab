@@ -1,0 +1,179 @@
+name: Build PulsarLab
+
+# ======================================================
+# Pipeline multiplataforma de compilación
+#
+# Genera:
+# - Windows installer (.exe)
+# - Linux bundle
+# - macOS bundle
+#
+# Utiliza PyInstaller --onedir
+# ======================================================
+
+
+on:
+
+  push:
+
+    branches:
+      - main
+
+    tags:
+      - "v*"
+
+
+  workflow_dispatch:
+
+env:
+  APP_VERSION: "0.0.${{ github.run_number }}"
+
+
+jobs:
+
+
+  build:
+
+
+    strategy:
+
+      matrix:
+
+        include:
+
+          - os: windows-latest
+            platform: windows
+
+          - os: ubuntu-latest
+            platform: linux
+
+          - os: macos-latest
+            platform: macos
+
+
+
+    runs-on: ${{ matrix.os }}
+
+
+
+    steps:
+
+
+      # Descargar código fuente
+      - name: Checkout repository
+
+        uses: actions/checkout@v4
+
+
+
+      # Configurar Python
+      - name: Setup Python 3.11
+
+        uses: actions/setup-python@v5
+
+        with:
+
+          python-version: "3.11"
+
+
+
+      # Instalar dependencias
+      - name: Install dependencies
+
+        shell: bash
+
+        run: |
+
+          python -m pip install --upgrade pip
+
+          pip install .
+
+          pip install pyinstaller
+
+
+
+      # Obtener versión automática
+      - name: Extract version
+
+        shell: bash
+
+        run: |
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+
+            VERSION=${GITHUB_REF#refs/tags/v}
+
+          else
+
+            VERSION="0.0.${GITHUB_RUN_NUMBER}"
+
+          fi
+
+
+          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+
+
+          echo "Building version $VERSION"
+
+
+
+      # Compilar aplicación
+      # Actualmente el spec de distribución está preparado para Windows.
+      # Linux/macOS pueden agregar sus propios specs cuando corresponda.
+      - name: Build with PyInstaller
+
+        shell: bash
+
+        run: |
+
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            pyinstaller packaging/windows/PulsarLab-folder.spec
+          else
+            echo "No platform-specific PyInstaller spec configured for ${{ matrix.platform }}"
+            exit 1
+          fi
+
+
+
+      # Crear instalador Windows
+      - name: Install Inno Setup
+
+        if: matrix.platform == 'windows'
+
+        shell: powershell
+
+        run: |
+
+          choco install innosetup -y
+
+
+
+      - name: Build Windows Installer
+
+        if: matrix.platform == 'windows'
+
+        shell: powershell
+
+        run: |
+
+
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+
+          /DMyAppVersion=${{ env.APP_VERSION }} `
+
+          packaging/windows/PulsarLab.iss
+
+
+
+      # Guardar artefactos
+      - name: Upload build artifact
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: PulsarLab-${{ matrix.platform }}-${{ env.APP_VERSION }}
+
+          path:
+
+            dist/
