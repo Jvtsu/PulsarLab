@@ -1,0 +1,32 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*.*.*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup -y --no-progress
+      - name: Build and test desktop application
+        shell: powershell
+        run: .\scripts\build_windows.ps1 -Clean
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PulsarLab-Windows-x64
+          path: |
+            dist/**/*.exe
+            dist/**/*.zip
+            dist/SHA256SUMS-Windows.txt
+          if-no-files-found: error
