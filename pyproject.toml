@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pulsarlab"
+version = "1.0.0"
+description = "Scientific pulsar spin-evolution, glitch, and TOA-context analysis platform"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+authors = [{name = "PulsarLab"}]
+dependencies = [
+  "numpy>=1.24",
+  "matplotlib>=3.7",
+  "PySide6>=6.5"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+test-rig = [
+  "pytest>=8",
+  "hypothesis>=6",
+  "pydantic>=2",
+  "pytest-benchmark>=4",
+  "numba>=0.59",
+  "polars>=1",
+  "pyarrow>=15",
+  "h5py>=3",
+  "zarr>=2",
+  "ruff>=0.6",
+  "pyright>=1.1",
+  "line_profiler>=4"
+]
+validation = ["pint-pulsar>=1.1", "astropy>=6.0"]
+fastplot = ["pyqtgraph>=0.13"]
+profile = ["scalene>=1.5"]
+desktop-build = ["pyinstaller>=6.10,<7"]
+windows-build = ["pyinstaller>=6.10,<7"]
+
+[project.scripts]
+plab = "pulsarlab.cli.launch:main"
+
+[tool.setuptools.packages.find]
+include = ["pulsarlab*"]
+
+[tool.setuptools.package-data]
+"pulsarlab.i18n" = ["*.json"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"]
+"tests/test_hypothesis_properties.py" = ["E402"]
+"tests/test_pydantic_contracts.py" = ["E402"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportOptionalCall = false
+reportOptionalMemberAccess = false
+reportPrivateImportUsage = false
