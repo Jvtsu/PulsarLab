@@ -41,3 +41,12 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         raise
     return run_app(initial_par, initial_dat, initial_tim)
+
+
+if __name__ == "__main__":
+    # This guard is required for PyInstaller. All three platform specs
+    # (windows/linux/macos) point PyInstaller's Analysis directly at this
+    # file, which means PyInstaller's bootloader executes it as __main__.
+    # Without this guard, main() is defined but never invoked, so the
+    # frozen executable would open and immediately exit doing nothing.
+    raise SystemExit(main())

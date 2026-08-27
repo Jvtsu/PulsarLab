@@ -3,177 +3,210 @@ name: Build PulsarLab
 # ======================================================
 # Pipeline multiplataforma de compilación
 #
-# Genera:
-# - Windows installer (.exe)
-# - Linux bundle
-# - macOS bundle
+# Genera, para cada sistema operativo:
+#   - Windows: carpeta PyInstaller (--onedir) + instalador Inno Setup (.exe)
+#   - Linux:   carpeta PyInstaller (--onedir)
+#   - macOS:   carpeta PyInstaller (--onedir) + paquete .app
 #
-# Utiliza PyInstaller --onedir
+# En tags "v*" además publica un GitHub Release con los tres artefactos
+# y un ZIP de código fuente con el nombre de carpeta correcto.
 # ======================================================
 
-
 on:
-
   push:
-
     branches:
       - main
-
     tags:
       - "v*"
-
-
   workflow_dispatch:
 
-env:
-  APP_VERSION: "0.0.${{ github.run_number }}"
-
+permissions:
+  contents: write
 
 jobs:
-
+  # ----------------------------------------------------
+  # Calcula una única versión para todos los jobs, para que el
+  # instalador de Windows y el ZIP del release usen exactamente
+  # el mismo número.
+  # ----------------------------------------------------
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Extract version
+        id: get_version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="0.0.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "Building version $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
   build:
-
-
+    needs: version
     strategy:
-
+      fail-fast: false
       matrix:
-
         include:
-
           - os: windows-latest
             platform: windows
+            spec: packaging/windows/PulsarLab-folder.spec
+            artifact_name: PulsarLab-Windows
 
           - os: ubuntu-latest
             platform: linux
+            spec: packaging/linux/PulsarLab.spec
+            artifact_name: PulsarLab-Linux
 
           - os: macos-latest
             platform: macos
-
-
+            spec: packaging/macos/PulsarLab.spec
+            artifact_name: PulsarLab-macOS
 
     runs-on: ${{ matrix.os }}
 
-
+    env:
+      APP_VERSION: ${{ needs.version.outputs.version }}
 
     steps:
-
-
-      # Descargar código fuente
       - name: Checkout repository
-
         uses: actions/checkout@v4
 
-
-
-      # Configurar Python
       - name: Setup Python 3.11
-
         uses: actions/setup-python@v5
-
         with:
-
           python-version: "3.11"
+          cache: pip
 
-
-
-      # Instalar dependencias
       - name: Install dependencies
-
         shell: bash
-
         run: |
-
           python -m pip install --upgrade pip
-
           pip install .
+          pip install "pyinstaller>=6.10,<7"
 
-          pip install pyinstaller
-
-
-
-      # Obtener versión automática
-      - name: Extract version
-
-        shell: bash
-
-        run: |
-
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-
-            VERSION=${GITHUB_REF#refs/tags/v}
-
-          else
-
-            VERSION="0.0.${GITHUB_RUN_NUMBER}"
-
-          fi
-
-
-          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
-
-
-          echo "Building version $VERSION"
-
-
-
-      # Compilar aplicación
-      # Actualmente el spec de distribución está preparado para Windows.
-      # Linux/macOS pueden agregar sus propios specs cuando corresponda.
       - name: Build with PyInstaller
-
         shell: bash
+        run: pyinstaller --noconfirm --clean "${{ matrix.spec }}"
 
+      - name: Smoke-test the frozen executable (Linux/macOS)
+        if: matrix.platform != 'windows'
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
-
-          if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            pyinstaller packaging/windows/PulsarLab-folder.spec
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            EXE="dist/PulsarLab.app/Contents/MacOS/PulsarLab"
           else
-            echo "No platform-specific PyInstaller spec configured for ${{ matrix.platform }}"
-            exit 1
+            EXE="dist/PulsarLab/PulsarLab"
           fi
+          "$EXE" --selfcheck
 
+      - name: Smoke-test the frozen executable (Windows)
+        if: matrix.platform == 'windows'
+        shell: powershell
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          & "dist\PulsarLab\PulsarLab.exe" --selfcheck
+          if ($LASTEXITCODE -ne 0) { throw "El ejecutable se creó, pero falló su prueba de apertura." }
 
-
-      # Crear instalador Windows
       - name: Install Inno Setup
-
         if: matrix.platform == 'windows'
-
         shell: powershell
+        run: choco install innosetup -y --no-progress
 
-        run: |
-
-          choco install innosetup -y
-
-
-
-      - name: Build Windows Installer
-
+      - name: Build Windows installer
         if: matrix.platform == 'windows'
-
         shell: powershell
-
         run: |
-
-
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ env.APP_VERSION }}" `
+            packaging\windows\PulsarLab.iss
 
-          /DMyAppVersion=${{ env.APP_VERSION }} `
-
-          packaging/windows/PulsarLab.iss
-
-
-
-      # Guardar artefactos
-      - name: Upload build artifact
-
+      - name: Upload build artifact (Windows)
+        if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
-
         with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            dist/PulsarLab/**
+            dist/installer/**
+          if-no-files-found: error
 
-          name: PulsarLab-${{ matrix.platform }}-${{ env.APP_VERSION }}
+      - name: Upload build artifact (Linux)
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/PulsarLab/**
+          if-no-files-found: error
 
-          path:
+      - name: Upload build artifact (macOS)
+        if: matrix.platform == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/PulsarLab.app/**
+          if-no-files-found: error
 
-            dist/
+  # ----------------------------------------------------
+  # Solo en tags "v*": arma un GitHub Release con los tres
+  # artefactos y un ZIP de código fuente con carpeta "PulsarLab"
+  # (en lugar de "PulsarLab-main", que es lo que genera el botón
+  # "Code -> Download ZIP" de GitHub y no se puede renombrar).
+  # ----------------------------------------------------
+  release:
+    needs: [version, build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    env:
+      APP_VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Package release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+
+          # Windows: el instalador ya tiene nombre final; el resto se
+          # empaqueta como ZIP portable.
+          cp release-artifacts/PulsarLab-Windows/installer/*.exe release-assets/
+          (cd release-artifacts/PulsarLab-Windows && zip -r -X \
+            "../../release-assets/PulsarLab-${APP_VERSION}-Windows-x64.zip" PulsarLab)
+
+          # Linux
+          (cd release-artifacts/PulsarLab-Linux && zip -r -X \
+            "../../release-assets/PulsarLab-${APP_VERSION}-Linux-x64.zip" .)
+
+          # macOS
+          (cd release-artifacts/PulsarLab-macOS && zip -r -X -y \
+            "../../release-assets/PulsarLab-${APP_VERSION}-macOS.zip" .)
+
+          # ZIP de código fuente con el nombre de carpeta correcto
+          # ("PulsarLab", no "PulsarLab-main").
+          git archive --format=zip --prefix=PulsarLab/ \
+            -o "release-assets/PulsarLab-${APP_VERSION}-Source.zip" HEAD
+
+          ls -la release-assets
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: PulsarLab ${{ env.APP_VERSION }}
+          generate_release_notes: true
+          files: release-assets/*

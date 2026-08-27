@@ -20,8 +20,11 @@ reduciendo problemas con:
 from pathlib import Path
 
 
-# Directorio raíz del proyecto
-ROOT = Path(SPECPATH).resolve().parent.parent.parent
+# Directorio raíz del proyecto.
+# SPECPATH ya es el directorio "packaging/windows" (sin nombre de archivo),
+# por lo que solo se necesitan dos ".parent" para llegar a la raíz del repo:
+#   packaging/windows -> packaging -> ROOT
+ROOT = Path(SPECPATH).resolve().parent.parent
 
 
 # Recursos adicionales que deben copiarse al bundle final

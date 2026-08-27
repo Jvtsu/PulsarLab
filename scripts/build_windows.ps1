@@ -118,7 +118,7 @@ Remove-Item -Recurse -Force -ErrorAction SilentlyContinue build, dist
 & $PyInstaller --noconfirm --clean packaging\windows\PulsarLab-folder.spec
 if ($LASTEXITCODE -ne 0) { throw "Falló la compilación de la carpeta ejecutable." }
 
-& (Join-Path $Root "dist\PulsarLab\PulsarLab.exe") --smoke-test
+& (Join-Path $Root "dist\PulsarLab\PulsarLab.exe") --selfcheck
 if ($LASTEXITCODE -ne 0) { throw "El ejecutable se creó, pero falló su prueba de apertura." }
 
 $PortableZip = Join-Path $Root "dist\PulsarLab-$Version-Windows-x64.zip"
