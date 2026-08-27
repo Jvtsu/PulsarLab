@@ -112,8 +112,17 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          & "dist\PulsarLab\PulsarLab.exe" --selfcheck
-          if ($LASTEXITCODE -ne 0) { throw "El ejecutable se creó, pero falló su prueba de apertura." }
+          # Se usa Start-Process -Wait -PassThru en vez de "&" + $LASTEXITCODE:
+          # PulsarLab.exe es un ejecutable "console=False" (subsistema Windows,
+          # sin consola propia). Con "&", $LASTEXITCODE puede leerse antes de
+          # que el proceso termine de asentarse del todo bajo PowerShell 5.1,
+          # dando un falso negativo aunque el self-check haya terminado bien.
+          # Start-Process -PassThru da un objeto de proceso con ExitCode fiable.
+          $proc = Start-Process -FilePath "dist\PulsarLab\PulsarLab.exe" `
+            -ArgumentList "--selfcheck" -NoNewWindow -Wait -PassThru
+          if ($proc.ExitCode -ne 0) {
+            throw "El ejecutable se creó, pero falló su prueba de apertura (exit code $($proc.ExitCode))."
+          }
 
       - name: Install Inno Setup
         if: matrix.platform == 'windows'
