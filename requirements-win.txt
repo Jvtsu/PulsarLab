@@ -1,0 +1,4 @@
+-r requirements.txt
+# Optional fast plotting: pip install -r requirements-fastplot.txt
+# Optional scientific validation:
+# pip install -r requirements-validation.txt

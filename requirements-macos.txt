@@ -1,0 +1,5 @@
+-r requirements.txt
+# Use a native Python build matching the Mac architecture (arm64 or x86_64).
+# Optional fast plotting: pip install -r requirements-fastplot.txt
+# Optional scientific validation:
+# pip install -r requirements-validation.txt
