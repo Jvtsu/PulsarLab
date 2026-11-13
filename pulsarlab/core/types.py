@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from typing import Any, Mapping
+from typing import Any
 
 import numpy as np
 
@@ -36,7 +37,7 @@ class GlitchComponent:
     def has_transient(self) -> bool:
         return self.glf0d != 0.0 and self.gltd is not None and self.gltd > 0
 
-    def with_enabled(self, enabled: bool) -> "GlitchComponent":
+    def with_enabled(self, enabled: bool) -> GlitchComponent:
         return replace(self, enabled=bool(enabled))
 
     def fingerprint(self) -> tuple:
@@ -125,7 +126,7 @@ class ObservationTable:
 
     @property
     def n(self) -> int:
-        return int(len(self.mjd))
+        return len(self.mjd)
 
     @property
     def mjd_span(self) -> tuple[float, float]:
@@ -133,7 +134,7 @@ class ObservationTable:
             return (float("nan"), float("nan"))
         return (float(np.nanmin(self.mjd)), float(np.nanmax(self.mjd)))
 
-    def filtered_by_mjd(self, start: float | None, finish: float | None) -> "ObservationTable":
+    def filtered_by_mjd(self, start: float | None, finish: float | None) -> ObservationTable:
         if self.n == 0:
             return self
         lo = float(start) if start is not None else float(np.nanmin(self.mjd))
@@ -226,7 +227,7 @@ class TOATable:
 
     @property
     def n(self) -> int:
-        return int(len(self.mjd))
+        return len(self.mjd)
 
     @property
     def mjd_span(self) -> tuple[float, float]:

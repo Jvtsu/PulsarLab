@@ -27,6 +27,10 @@ The scientific core is intentionally NumPy-first and UI-free — the interface o
 
 Built and maintained by the PulsarLab team.
 
+### User data and examples
+
+PulsarLab does not bundle `.par`, `.dat`, or `.tim` datasets. Load your own files from the desktop application or CLI. Automated tests generate small synthetic inputs in temporary directories, so the repository and installers remain free of user timing data.
+
 ## Usage
 
 Open an empty workspace:
@@ -111,7 +115,7 @@ Faster optional plotting backend (PyQtGraph):
 pip install -r requirements-fastplot.txt
 ```
 
-This repository includes the desktop runtime **and** the development material: tests, scripts, documentation, examples, and packaging files. End users only need the installed application or the runtime dependencies; contributors can use the complete checkout for testing, validation, benchmarking, and desktop builds.
+This repository includes the desktop runtime and development material: tests, scripts, documentation, and packaging files. It intentionally does not distribute user PAR/DAT/TIM datasets. End users only need the installed application or runtime dependencies; contributors can use the checkout for testing, validation, benchmarking, and desktop builds.
 
 ## Scientific scope
 

@@ -109,7 +109,7 @@ def parse_tim(source: str | bytes | Path, source_name: str | None = None) -> tup
         # Classic TEMPO uses an uppercase C in column one as a comment.
         # Do not uppercase the row: lowercase file names such as ``c`` are
         # valid FORMAT 1 TOA names.
-        if raw == "C" or raw.startswith("C ") or raw.startswith("C\t"):
+        if raw == "C" or raw.startswith(("C ", "C\t")):
             continue
 
         parts = line.split()

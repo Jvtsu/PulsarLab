@@ -104,7 +104,7 @@ def parse_par(source: str | bytes | Path, source_name: str | None = None) -> tup
         if not line:
             continue
         upper = line.upper()
-        if upper == "C" or upper.startswith("C ") or upper.startswith("#") or upper.startswith("//"):
+        if upper == "C" or upper.startswith(("C ", "#", "//")):
             continue
 
         parts = line.split()
@@ -143,10 +143,12 @@ def parse_par(source: str | bytes | Path, source_name: str | None = None) -> tup
 
     if "START" in params and "FINISH" in params:
         try:
-            if float(params["START"]) == float(params["FINISH"]):
-                report.warnings.append("START and FINISH are identical; model grid will contain a single epoch.")
-        except Exception:
-            pass
+            start = float(params["START"])
+            finish = float(params["FINISH"])
+        except (TypeError, ValueError):
+            start = finish = None
+        if start is not None and finish is not None and start == finish:
+            report.warnings.append("START and FINISH are identical; model grid will contain a single epoch.")
 
     if report.errors:
         return None, report

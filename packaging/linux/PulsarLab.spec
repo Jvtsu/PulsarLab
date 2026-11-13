@@ -10,7 +10,7 @@ Formato:
     --onedir
 
 Genera dist/PulsarLab/ con el ejecutable, sus bibliotecas nativas
-(incluyendo el runtime de Qt que trae PySide6) y los datos empaquetados.
+(incluyendo el runtime de Qt que trae PySide6) y los recursos de interfaz.
 No requiere Python instalado en la máquina destino.
 """
 
@@ -26,12 +26,6 @@ ROOT = Path(SPECPATH).resolve().parent.parent
 
 # Recursos adicionales que deben copiarse al bundle final
 datas = [
-
-    # Datos de ejemplo para pruebas del usuario
-    (
-        str(ROOT / "examples"),
-        "examples"
-    ),
 
     # Archivos de internacionalización
     (
@@ -104,7 +98,7 @@ exe = EXE(
 
     strip=False,
 
-    upx=True,
+    upx=False,
 
     console=False,
 
@@ -124,7 +118,7 @@ coll = COLLECT(
 
     strip=False,
 
-    upx=True,
+    upx=False,
 
     name="PulsarLab"
 

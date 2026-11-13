@@ -19,3 +19,10 @@ def test_cli_rejects_duplicate_file_type():
     parser = argparse.ArgumentParser()
     with pytest.raises(SystemExit):
         _classify_files(["a.par", "b.par"], parser)
+
+
+def test_cli_smoke_test_dispatches_to_gui_smoke_runner(monkeypatch):
+    import pulsarlab.cli.launch as launch
+
+    monkeypatch.setattr(launch, "_run_gui_smoke_test", lambda: 0)
+    assert launch.main(["--smoke-test"]) == 0

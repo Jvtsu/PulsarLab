@@ -3,14 +3,14 @@ import ast
 
 from pulsarlab.datasets.loader import load_pair
 from pulsarlab.engine.pipeline import Pipeline
+from sample_data import sample_sources
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_shipped_example_pair_loads_and_computes():
-    par = ROOT / "examples" / "par_files" / "nicer-paper.par"
-    dat = ROOT / "examples" / "dat_files" / "nicervf_sm5-20.dat"
-    ds, report = load_pair(par, dat, par.name, dat.name)
+def test_synthetic_par_dat_pair_loads_and_computes():
+    par, dat, _tim = sample_sources()
+    ds, report = load_pair(par, dat, "synthetic.par", "synthetic.dat")
     assert ds is not None, report.errors
     res = Pipeline().compute(ds, grid_points=256)
     assert res.model_mjd.size >= 256
@@ -33,3 +33,15 @@ def test_no_qt_imports_in_headless_layers():
                     if any(name.startswith("PySide6") or name.startswith("Qt") for name in names):
                         offenders.append(str(file.relative_to(ROOT)))
     assert not offenders
+
+
+def test_repository_does_not_ship_user_timing_datasets():
+    forbidden = {".par", ".dat", ".tim"}
+    excluded_dirs = {".git", ".venv", ".venv-build", "build", "dist", "__pycache__", ".pytest_cache", ".hypothesis"}
+    found = []
+    for path in ROOT.rglob("*"):
+        if not path.is_file() or any(part in excluded_dirs for part in path.parts):
+            continue
+        if path.suffix.lower() in forbidden:
+            found.append(str(path.relative_to(ROOT)))
+    assert not found, f"User timing data must not be distributed: {found}"

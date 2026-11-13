@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 
@@ -18,6 +19,34 @@ def _classify_files(files: list[str], parser: argparse.ArgumentParser) -> tuple[
     return found.get("par"), found.get("dat"), found.get("tim")
 
 
+def _run_gui_smoke_test() -> int:
+    """Start the real desktop shell, visit core views, and exit cleanly.
+
+    This is intended for CI and frozen builds. It does not load user data.
+    """
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+
+    from pulsarlab.ui.main_window import MainWindow
+    from pulsarlab.ui.theme import APP_QSS
+
+    app = QApplication.instance() or QApplication([])
+    app.setStyleSheet(APP_QSS)
+    window = MainWindow()
+    window.show()
+    for view in ("spin_analysis", "glitches_toas", "residuals", "datasets", "information"):
+        window.workspace.set_view(view)
+        app.processEvents()
+    QTimer.singleShot(200, app.quit)
+    try:
+        return int(app.exec())
+    finally:
+        window.close()
+        app.processEvents()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="plab",
@@ -25,12 +54,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("files", nargs="*", help="Optional .par, .dat, and/or .tim files")
     parser.add_argument("--selfcheck", action="store_true", help="Run headless physics self-check and exit")
+    parser.add_argument("--smoke-test", action="store_true", help="Start the GUI, visit core views, and exit (CI)")
     args = parser.parse_args(argv)
 
     if args.selfcheck:
         from pulsarlab.scripts_api import run_selfcheck
         run_selfcheck()
         return 0
+    if args.smoke_test:
+        return _run_gui_smoke_test()
 
     initial_par, initial_dat, initial_tim = _classify_files(args.files, parser)
     try:

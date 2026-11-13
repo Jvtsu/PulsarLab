@@ -14,7 +14,7 @@ class Report:
     def ok(self) -> bool:
         return not self.errors
 
-    def extend(self, other: "Report") -> None:
+    def extend(self, other: Report) -> None:
         self.warnings.extend(other.warnings)
         self.errors.extend(other.errors)
 

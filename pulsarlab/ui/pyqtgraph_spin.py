@@ -19,7 +19,7 @@ try:  # pragma: no cover - optional GUI backend
     import pyqtgraph as pg
     from pyqtgraph.Qt import QtCore
     from PySide6.QtWidgets import QVBoxLayout, QWidget
-except Exception as exc:  # pragma: no cover - optional GUI backend
+except (ImportError, OSError) as exc:  # pragma: no cover - optional GUI backend
     pg = None
     QWidget = object  # type: ignore
     QVBoxLayout = None  # type: ignore

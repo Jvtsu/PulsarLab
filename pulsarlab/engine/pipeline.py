@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 import time
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -13,12 +13,16 @@ from pulsarlab.core.glitch_model import group_components_by_epoch
 from pulsarlab.core.phase_model import compute_phase, compute_phase_bundle
 from pulsarlab.core.spin_model import compute_spin
 from pulsarlab.datasets.dataset import PulsarProject
-from pulsarlab.engine.residuals import residual, stats, ResidualStats
+from pulsarlab.engine.residuals import ResidualStats, residual, stats
 from pulsarlab.engine.toa_analysis import GlitchTOASummary, summarize_glitch_toas
 
 
 class ProjectNotComputableError(ValueError):
     """Raised when scientific model computation is requested without a PAR."""
+
+
+def _empty_array() -> np.ndarray:
+    return np.array([], dtype=float)
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,17 @@ class ModelResult:
     glitch_groups: list[dict]
     glitch_toa_summaries: tuple[GlitchTOASummary, ...]
     computed_seconds: float
+    # Added after 1.0.0 (defaults keep older keyword-constructed results valid).
+    # ``*_noglit_at_data`` is the spin polynomial without glitch terms evaluated
+    # at the DAT epochs.  ``delta_f0_obs``/``delta_f1_obs`` are the *observed*
+    # glitch signatures (DAT - no-glitch model), i.e. the data counterpart of
+    # ``glitch_f0``/``glitch_f1`` (model with glitches - model without).
+    f0_noglit_at_data: np.ndarray = field(default_factory=_empty_array)
+    f1_noglit_at_data: np.ndarray = field(default_factory=_empty_array)
+    f2_noglit_at_data: np.ndarray = field(default_factory=_empty_array)
+    delta_f0_obs: np.ndarray = field(default_factory=_empty_array)
+    delta_f1_obs: np.ndarray | None = None
+    delta_f2_obs: np.ndarray | None = None
 
 
 class ModelCache:
@@ -162,12 +177,21 @@ class Pipeline:
         if obs is None:
             empty = np.array([], dtype=float)
             f0_data = f1_data = f2_data = empty
+            f0_base = f1_base = f2_base = empty
+            d0 = empty
+            d1 = d2 = None
             r0 = empty
             r1 = r2 = None
             st0 = stats(empty)
             st1 = st2 = None
         else:
             f0_data, f1_data, f2_data = compute_spin(model, obs.mjd, include_glitches, active)
+            # Same polynomial but with every glitch term removed: the baseline
+            # against which an observed glitch step/recovery is measured.
+            f0_base, f1_base, f2_base = compute_spin(model, obs.mjd, include_glitches=False, active_components=active)
+            d0 = residual(obs.f0, f0_base)
+            d1 = residual(obs.f1, f1_base) if obs.f1 is not None else None
+            d2 = residual(obs.f2, f2_base) if obs.f2 is not None else None
             r0 = residual(obs.f0, f0_data)
             r1 = residual(obs.f1, f1_data) if obs.f1 is not None else None
             r2 = residual(obs.f2, f2_data) if obs.f2 is not None else None
@@ -220,6 +244,12 @@ class Pipeline:
             glitch_groups=group_components_by_epoch(model.glitches),
             glitch_toa_summaries=glitch_toa_summaries,
             computed_seconds=float(time.perf_counter() - t0),
+            f0_noglit_at_data=f0_base,
+            f1_noglit_at_data=f1_base,
+            f2_noglit_at_data=f2_base,
+            delta_f0_obs=d0,
+            delta_f1_obs=d1,
+            delta_f2_obs=d2,
         )
         self.cache.set(key, result)
         return result

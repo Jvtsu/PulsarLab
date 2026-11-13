@@ -12,14 +12,13 @@ requires-python = ">=3.10"
 authors = [{name = "PulsarLab"}]
 dependencies = [
   "numpy>=1.24",
-  "pandas>=2.0",
-  "scipy>=1.11",
   "matplotlib>=3.7",
   "PySide6>=6.5"
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+test = ["pytest>=8", "hypothesis>=6", "pydantic>=2", "ruff>=0.6", "tomli>=2; python_version < '3.11'"]
 test-rig = [
   "pytest>=8",
   "hypothesis>=6",

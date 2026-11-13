@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
+from pulsarlab.core.glitch_model import sum_glitches
 from pulsarlab.core.types import ParModel
 from pulsarlab.core.units import mjd_to_seconds
-from pulsarlab.core.glitch_model import sum_glitches
 
 
 def spin_polynomial(model: ParModel, mjd) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

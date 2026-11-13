@@ -7,6 +7,7 @@ files, mutates projects, or recalculates the scientific model.
 from __future__ import annotations
 
 import numpy as np
+from matplotlib import ticker
 
 from pulsarlab.datasets.dataset import PulsarProject
 from pulsarlab.engine.pipeline import ModelResult
@@ -17,23 +18,69 @@ def _txt(labels: dict[str, str] | None, key: str, fallback: str) -> str:
     return fallback if labels is None else labels.get(key, fallback)
 
 
+def style_axis_text(ax) -> None:
+    """Colour *every* tick label (major **and** minor) and the offset text.
+
+    ``Axes.tick_params`` only touches major ticks unless ``which='both'`` is
+    given.  On a logarithmic axis whose range does not span a whole decade the
+    *only* labels Matplotlib draws are minor ones, which therefore came out in
+    Matplotlib's default black on the dark panel and looked as if the axis had
+    no numbers.  Call this again after ``set_xscale``/``set_yscale``.
+    """
+    ax.tick_params(axis="both", which="both", colors=T.MUTED, labelcolor=T.MUTED)
+    ax.yaxis.get_offset_text().set_color(T.MUTED)
+    ax.xaxis.get_offset_text().set_color(T.MUTED)
+
+
 def apply_dark_theme(fig, axes) -> None:
     fig.patch.set_facecolor(T.BG)
     for ax in np.ravel(np.array(axes, dtype=object)):
         ax.set_facecolor(T.BG_PANEL)
-        ax.tick_params(colors=T.MUTED)
+        style_axis_text(ax)
         ax.xaxis.label.set_color(T.TEXT)
         ax.yaxis.label.set_color(T.TEXT)
         ax.title.set_color(T.TEXT)
-        ax.yaxis.get_offset_text().set_color(T.MUTED)
-        ax.xaxis.get_offset_text().set_color(T.MUTED)
         for spine in ax.spines.values():
             spine.set_color(T.GRID)
         ax.grid(True, color=T.GRID, alpha=0.5, linewidth=0.7)
 
 
+def use_adaptive_layout(fig, pad: float = 0.08) -> None:
+    """Size margins from the real text extents instead of hard-coded fractions.
+
+    Fixed ``subplots_adjust`` fractions assume one font/DPI/canvas height.  On a
+    shorter canvas (small laptop window, macOS font metrics, Retina scaling) they
+    clipped the title, the ``MJD`` label and tick numbers.  The constrained
+    layout engine re-solves the margins on every draw, including window resizes.
+    """
+    fig.set_layout_engine("constrained")
+    engine = fig.get_layout_engine()
+    if engine is not None:
+        engine.set(w_pad=pad, h_pad=pad)
+
+
+def _short_label(text: str, limit: int = 28) -> str:
+    """Middle-ellipsis for long project names used as tick labels."""
+    text = str(text)
+    if len(text) <= limit:
+        return text
+    head = max(1, (limit - 1) // 2)
+    tail = max(1, limit - 1 - head)
+    return text[:head] + "…" + text[-tail:]
+
+
+def _errorbar(ax, x, y, yerr, *, color, label, visibility, ms: float = 3.0, alpha: float = 0.86):
+    """Data points with 1σ error bars (bars omitted if toggled off or all NaN)."""
+    kwargs = {"fmt": ".", "ms": ms, "alpha": alpha, "color": color, "label": label, "zorder": 3}
+    if bool(visibility.get("errorbars", True)) and yerr is not None:
+        yerr = np.asarray(yerr, dtype=float)
+        if yerr.size and np.any(np.isfinite(yerr)):
+            kwargs.update(yerr=yerr, elinewidth=0.9, capsize=3.0, capthick=0.9)
+    return ax.errorbar(np.asarray(x, dtype=float), np.asarray(y, dtype=float), **kwargs)
+
+
 def _set_legend(ax) -> None:
-    handles, labels = ax.get_legend_handles_labels()
+    handles, _labels = ax.get_legend_handles_labels()
     if not handles:
         return
     leg = ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=8, frameon=True)
@@ -94,10 +141,17 @@ def _computed_projects(projects: list[PulsarProject], results: dict[str, ModelRe
     return [project for project in projects if project.dataset_id in results]
 
 
-def _empty_axis(ax, message: str) -> None:
+def _empty_axis(ax, message: str, keep_x: bool = False) -> None:
+    """Show a centred message instead of data.
+
+    ``keep_x`` must be True when the x axis is shared with other panels:
+    ``set_xticks([])`` on a shared axis removes the numbers from *all* of them.
+    """
     ax.text(0.5, 0.5, message, ha="center", va="center", color=T.TEXT, transform=ax.transAxes)
-    ax.set_xticks([])
+    if not keep_x:
+        ax.set_xticks([])
     ax.set_yticks([])
+    ax.yaxis.set_minor_locator(ticker.NullLocator())
 
 
 def _display_indices(size: int, limit: int = 25000) -> np.ndarray:
@@ -114,7 +168,7 @@ def _display_indices(size: int, limit: int = 25000) -> np.ndarray:
     return np.linspace(0, n - 1, cap, dtype=int)
 
 
-def draw_glitch_rail(ax, project: PulsarProject, result: ModelResult, y: float = 1.010) -> None:
+def draw_glitch_rail(ax, project: PulsarProject, result: ModelResult, y: float = 1.010, show_labels: bool = True) -> None:
     trans = ax.get_xaxis_transform()
     for group in result.glitch_groups:
         glep = group.get("glep")
@@ -122,6 +176,8 @@ def draw_glitch_rail(ax, project: PulsarProject, result: ModelResult, y: float =
             continue
         label = group.get("label", "G")
         ax.axvline(float(glep), color=T.GLITCH, alpha=0.42, linewidth=1.0, linestyle=":", zorder=1)
+        if not show_labels:
+            continue
         ax.text(
             float(glep), y, label,
             transform=trans,
@@ -151,12 +207,11 @@ def _draw_f0_axis(
             obs_label = f"D{idx} F0 obs"
             display_label = f"D{idx} F0 {_txt(labels, 'legend.observed', 'observed')}"
             shown = _display_indices(obs.n)
-            art = ax.errorbar(
-                np.asarray(obs.mjd)[shown], np.asarray(obs.f0)[shown],
-                yerr=np.asarray(obs.f0_err)[shown], fmt=".", ms=3, alpha=0.86,
-                color=color, label=display_label,
+            artists[obs_label] = _errorbar(
+                ax, np.asarray(obs.mjd)[shown], np.asarray(obs.f0)[shown],
+                np.asarray(obs.f0_err)[shown], color=color, label=display_label,
+                visibility=visibility,
             )
-            artists[obs_label] = art
         model_label = f"D{idx} F0 model"
         baseline_label = f"D{idx} F0 no glitches"
         x, y = _break_at_epochs(result.model_mjd, result.f0_model, epochs)
@@ -191,9 +246,9 @@ def _draw_f1_axis(
             shown = _display_indices(obs.n)
             f1_err = None if obs.f1_err is None else np.asarray(obs.f1_err)[shown] * 1e15
             display_label = f"D{idx} F1 {_txt(labels, 'legend.observed', 'observed')}"
-            artists[f1_label] = ax.errorbar(
-                np.asarray(obs.mjd)[shown], np.asarray(obs.f1)[shown] * 1e15,
-                yerr=f1_err, fmt=".", ms=3, alpha=0.78, color=color, label=display_label,
+            artists[f1_label] = _errorbar(
+                ax, np.asarray(obs.mjd)[shown], np.asarray(obs.f1)[shown] * 1e15,
+                f1_err, color=color, label=display_label, alpha=0.78, visibility=visibility,
             )
         model_label = f"D{idx} F1 model"
         baseline_label = f"D{idx} F1 no glitches"
@@ -242,7 +297,7 @@ def plot_spin(
     axes[1].set_xlabel("MJD")
     for ax in axes:
         _set_legend(ax)
-    fig.subplots_adjust(top=0.87, right=0.80, hspace=0.24)
+    use_adaptive_layout(fig)
     return artists
 
 
@@ -267,7 +322,7 @@ def plot_phase(fig, datasets: list[PulsarProject], results: dict[str, ModelResul
     axes[2].set_xlabel("MJD")
     for ax in axes:
         _set_legend(ax)
-    fig.tight_layout()
+    use_adaptive_layout(fig)
 
 
 def plot_spin_analysis(
@@ -312,12 +367,39 @@ def plot_spin_analysis(
 
         if "phase" in axis_for:
             axis_for["phase"].plot(result.model_mjd, result.phase, color=color, linewidth=1.25, label=f"D{idx} {_txt(labels, 'legend.phase', 'phase')}")
+        obs = project.observations
+        observed = _txt(labels, "legend.observed", "observed")
         if "delta_f0" in axis_for:
+            ax = axis_for["delta_f0"]
             xf0, yf0 = _break_at_epochs(result.model_mjd, result.glitch_f0, epochs)
-            axis_for["delta_f0"].plot(xf0, yf0, color=color, linewidth=1.35, label=f"D{idx} ΔF0 {_txt(labels, 'legend.glitch', 'glitch')}")
+            artists[f"D{idx} ΔF0 model"], = ax.plot(
+                xf0, yf0, color=color, linewidth=1.35,
+                label=f"D{idx} ΔF0 {_txt(labels, 'legend.glitch', 'glitch')}",
+            )
+            # DAT counterpart of the curve above: observed F0 minus the
+            # no-glitch timing solution, with the DAT F0 uncertainty.
+            if obs is not None and result.delta_f0_obs.size == obs.n:
+                shown = _display_indices(obs.n)
+                artists[f"D{idx} ΔF0 obs"] = _errorbar(
+                    ax, np.asarray(obs.mjd)[shown], result.delta_f0_obs[shown],
+                    np.asarray(obs.f0_err)[shown], color=color,
+                    label=f"D{idx} ΔF0 {observed}", visibility=visibility,
+                )
         if "delta_f1" in axis_for:
+            ax = axis_for["delta_f1"]
             xf1, yf1 = _break_at_epochs(result.model_mjd, result.glitch_f1 * 1e15, epochs)
-            axis_for["delta_f1"].plot(xf1, yf1, color=color, linewidth=1.35, label=f"D{idx} ΔF1 {_txt(labels, 'legend.glitch', 'glitch')}")
+            artists[f"D{idx} ΔF1 model"], = ax.plot(
+                xf1, yf1, color=color, linewidth=1.35,
+                label=f"D{idx} ΔF1 {_txt(labels, 'legend.glitch', 'glitch')}",
+            )
+            if obs is not None and result.delta_f1_obs is not None and result.delta_f1_obs.size == obs.n:
+                shown = _display_indices(obs.n)
+                f1_err = None if obs.f1_err is None else np.asarray(obs.f1_err)[shown] * 1e15
+                artists[f"D{idx} ΔF1 obs"] = _errorbar(
+                    ax, np.asarray(obs.mjd)[shown], result.delta_f1_obs[shown] * 1e15,
+                    f1_err, color=color, label=f"D{idx} ΔF1 {observed}", alpha=0.78,
+                    visibility=visibility,
+                )
 
         if _glitch_visible(visibility):
             for key in ("phase", "delta_f0", "delta_f1"):
@@ -328,6 +410,11 @@ def plot_spin_analysis(
         axis_for["delta_f0"].axhline(0, color=T.GRID, linewidth=1)
     if "delta_f1" in axis_for:
         axis_for["delta_f1"].axhline(0, color=T.GRID, linewidth=1)
+
+    # Honour the per-line toggles for the Δ panels (same checkboxes as F0/F1).
+    for key, artist in artists.items():
+        if "Δ" in key:
+            _artist_set_visible(artist, bool(visibility.get(key, True)))
 
     ylabels = {
         "f0": "F0 [Hz]",
@@ -342,13 +429,7 @@ def plot_spin_analysis(
     axes[0].set_title(_txt(labels, "spin_analysis.title", "Spin Analysis"), pad=30)
     axes[-1].set_xlabel("MJD")
 
-    height = max(1, len(enabled))
-    fig.subplots_adjust(
-        top=0.88 if height == 1 else 0.92,
-        right=0.80,
-        hspace=0.28 if height <= 3 else 0.34,
-        bottom=0.10 if height == 1 else 0.07,
-    )
+    use_adaptive_layout(fig)
     return artists
 
 
@@ -376,10 +457,10 @@ def plot_glitches(fig, datasets: list[PulsarProject], results: dict[str, ModelRe
     ax.set_title(_txt(labels, "glitches.title", "Glitch catalogue"))
     ax.set_xlabel("MJD")
     ax.set_yticks(range(1, len(computed) + 1))
-    ax.set_yticklabels([f"D{i}: {d.name}" for i, d in enumerate(computed, start=1)], color=T.TEXT)
+    ax.set_yticklabels([_short_label(f"D{i}: {d.name}") for i, d in enumerate(computed, start=1)], color=T.TEXT)
     if computed:
         ax.set_ylim(0.65, len(computed) + 0.35)
-    fig.subplots_adjust(top=0.90, bottom=0.15, left=0.12, right=0.96)
+    use_adaptive_layout(fig)
     return picked
 
 
@@ -390,7 +471,13 @@ def plot_glitches_toas(
     labels: dict[str, str] | None = None,
     toa_window: float | None = None,
 ) -> list[dict]:
-    """Timeline of glitches, TOA density, and TOA uncertainty."""
+    """Timeline of glitches, TOA density, and TOA uncertainty.
+
+    Upper panel: one row per project. Each glitch is a green marker; when
+    ``toa_window`` is given, the translucent band around it is the ±window
+    search interval and the TOAs inside it are drawn bolder (both appear in the
+    legend). Lower panel: TOA uncertainty (log scale).
+    """
     fig.clear()
     axes = fig.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [1.1, 1.5]})
     apply_dark_theme(fig, axes)
@@ -398,6 +485,7 @@ def plot_glitches_toas(
     picked: list[dict] = []
     visible_rows = 0
     uncertainty_plotted = False
+    window_in_legend = False
     for idx, project in enumerate(projects, start=1):
         color = T.DATASET_COLORS[(idx - 1) % len(T.DATASET_COLORS)]
         y = idx
@@ -405,6 +493,7 @@ def plot_glitches_toas(
         span = project.mjd_span
         if np.all(np.isfinite(span)):
             timeline.hlines(y, *span, color=T.GRID, linewidth=1)
+        emphasised_in_legend = False
         if project.toas is not None:
             mjd = np.asarray(project.toas.mjd, dtype=float)
             sigma = np.asarray(project.toas.uncertainty_us, dtype=float)
@@ -425,13 +514,25 @@ def plot_glitches_toas(
                 if glep is None:
                     continue
                 if toa_window is not None and project.toas is not None:
-                    timeline.axvspan(float(glep)-float(toa_window), float(glep)+float(toa_window), color=T.GLITCH, alpha=0.08, zorder=0)
+                    window_label = "_nolegend_"
+                    if not window_in_legend:
+                        window_in_legend = True
+                        window_label = _txt(labels, "glitches_toas.window_legend", "TOA window ±{window:g} d").format(window=float(toa_window))
+                    timeline.axvspan(
+                        float(glep) - float(toa_window), float(glep) + float(toa_window),
+                        color=T.GLITCH, alpha=0.10, zorder=0, label=window_label,
+                    )
                     near = project.toas.near_mjd(float(glep), float(toa_window))
                     if near.size:
                         near_shown = near[_display_indices(near.size, limit=5000)]
+                        in_window_label = "_nolegend_"
+                        if not emphasised_in_legend:
+                            emphasised_in_legend = True
+                            in_window_label = f"D{idx} " + _txt(labels, "glitches_toas.toas_in_window", "TOAs in window")
                         timeline.scatter(
                             project.toas.mjd[near_shown], np.full(near_shown.size, y, dtype=float),
                             marker="|", s=150, linewidths=1.4, color=color, alpha=1.0, zorder=5,
+                            label=in_window_label,
                         )
                 marker = timeline.scatter([glep], [y], color=T.GLITCH, edgecolors=T.TEXT, linewidths=0.5, s=78, zorder=15, picker=True)
                 marker._pulsarlab_glitch_group = group
@@ -443,18 +544,26 @@ def plot_glitches_toas(
     timeline.set_title(_txt(labels, "glitches_toas.title", "Glitches & TOAs"))
     timeline.set_ylabel(_txt(labels, "glitches_toas.timeline", "Projects"))
     timeline.set_yticks(range(1, visible_rows + 1))
-    timeline.set_yticklabels([f"D{i}: {p.name}" for i, p in enumerate(projects, start=1)], color=T.TEXT)
+    timeline.set_yticklabels([_short_label(f"D{i}: {p.name}") for i, p in enumerate(projects, start=1)], color=T.TEXT)
+    if visible_rows:
+        timeline.set_ylim(0.45, visible_rows + 0.65)
     errors.set_ylabel(_txt(labels, "glitches_toas.error", "TOA uncertainty [µs]"))
     errors.set_xlabel("MJD")
     if uncertainty_plotted:
         errors.set_yscale("log")
+        # Plain numbers (50, 60, 70 …) instead of 5×10¹ mathtext, and re-apply the
+        # tick colours because the scale change creates fresh minor ticks.
+        log_fmt = ticker.LogFormatter(base=10.0, labelOnlyBase=False, minor_thresholds=(2.0, 0.6))
+        errors.yaxis.set_major_formatter(log_fmt)
+        errors.yaxis.set_minor_formatter(log_fmt)
+        style_axis_text(errors)
     elif any(project.toas is not None for project in projects):
-        _empty_axis(errors, _txt(labels, "glitches_toas.no_uncertainties", "No positive finite TOA uncertainties are available."))
+        _empty_axis(errors, _txt(labels, "glitches_toas.no_uncertainties", "No positive finite TOA uncertainties are available."), keep_x=True)
     else:
-        _empty_axis(errors, _txt(labels, "glitches_toas.no_toas", "No TIM/TOA data loaded."))
+        _empty_axis(errors, _txt(labels, "glitches_toas.no_toas", "No TIM/TOA data loaded."), keep_x=True)
     _set_legend(timeline)
     _set_legend(errors)
-    fig.subplots_adjust(top=0.90, right=0.80, hspace=0.24, left=0.12, bottom=0.10)
+    use_adaptive_layout(fig)
     return picked
 
 
@@ -484,14 +593,35 @@ def plot_glitch_contribution(fig, datasets: list[PulsarProject], results: dict[s
     axes[2].set_xlabel("MJD")
     for ax in axes:
         _set_legend(ax)
-    fig.subplots_adjust(top=0.86, right=0.80, hspace=0.25)
+    use_adaptive_layout(fig)
 
 
-def plot_residuals(fig, datasets: list[PulsarProject], results: dict[str, ModelResult], labels: dict[str, str] | None = None) -> None:
+def plot_residuals(
+    fig,
+    datasets: list[PulsarProject],
+    results: dict[str, ModelResult],
+    labels: dict[str, str] | None = None,
+    visibility: dict[str, bool] | None = None,
+) -> None:
+    """Processed-frequency residuals ``observed - model`` with DAT 1σ error bars.
+
+    The model includes the glitch terms; nothing else is subtracted. The error
+    bars are the F0 (F1) uncertainties stored in the DAT file; PAR parameter
+    uncertainties are not propagated.
+
+    Bars are drawn for every dataset.  When a dataset's DAT uncertainty is orders
+    of magnitude below the residual scatter on the (shared) y axis its bars are
+    genuinely sub-pixel at full range; they are never inflated, since they must
+    equal the DAT σ.  The UI summary reports σ/RMS so this is not mistaken for
+    missing bars.
+    """
+    visibility = visibility or {}
     fig.clear()
     axes = fig.subplots(2, 1, sharex=True)
     apply_dark_theme(fig, axes)
     plotted = False
+    plotted_f1 = False
+
     for idx, project in enumerate(_computed_projects(datasets, results), start=1):
         if project.observations is None:
             continue
@@ -499,34 +629,57 @@ def plot_residuals(fig, datasets: list[PulsarProject], results: dict[str, ModelR
         result = results[project.dataset_id]
         obs = project.observations
         color = T.DATASET_COLORS[(idx - 1) % len(T.DATASET_COLORS)]
+        residual_word = _txt(labels, "legend.residual", "residual")
         axes[0].axhline(0, color=T.GRID, linewidth=1)
         shown = _display_indices(obs.n)
-        axes[0].plot(np.asarray(obs.mjd)[shown], np.asarray(result.residual_f0)[shown], ".", color=color, label=f"D{idx} F0 {_txt(labels, 'legend.residual', 'residual')}")
+        mjd = np.asarray(obs.mjd)[shown]
+        _errorbar(
+            axes[0], mjd, np.asarray(result.residual_f0)[shown], np.asarray(obs.f0_err)[shown],
+            color=color, label=f"D{idx} F0 {residual_word}", visibility=visibility,
+        )
         if result.residual_f1 is not None:
+            plotted_f1 = True
             axes[1].axhline(0, color=T.GRID, linewidth=1)
-            axes[1].plot(np.asarray(obs.mjd)[shown], np.asarray(result.residual_f1)[shown], ".", color=color, label=f"D{idx} F1 {_txt(labels, 'legend.residual', 'residual')}")
+            f1_err = None if obs.f1_err is None else np.asarray(obs.f1_err)[shown] * 1e15
+            _errorbar(
+                axes[1], mjd, np.asarray(result.residual_f1)[shown] * 1e15, f1_err,
+                color=color, label=f"D{idx} F1 {residual_word}", visibility=visibility,
+            )
     if not plotted:
+        # Nothing at all to plot, so hiding the (shared) x numbers is correct here.
         _empty_axis(axes[0], _txt(labels, "residuals.no_dat", "Load PAR + DAT to compute frequency residuals."))
+    elif not plotted_f1:
+        _empty_axis(axes[1], _txt(labels, "residuals.no_f1", "The DAT file has no F1 column."), keep_x=True)
     axes[0].set_title(_txt(labels, "residuals.title", "Residuals (observed − model)"))
-    axes[0].set_ylabel("ΔF0 [Hz]")
-    axes[1].set_ylabel("ΔF1 [Hz s⁻¹]")
+    # These are *not* the ΔF0/ΔF1 glitch-contribution panels of Spin Analysis, so
+    # they get their own names instead of reusing "ΔF0 [Hz]".
+    axes[0].set_ylabel(_txt(labels, "residuals.f0_ylabel", "F0 residual [Hz]"))
+    axes[1].set_ylabel(_txt(labels, "residuals.f1_ylabel", "F1 residual [10^-15 Hz/s]"))
     axes[1].set_xlabel("MJD")
     for ax in axes:
         _set_legend(ax)
-    fig.tight_layout()
+    use_adaptive_layout(fig)
 
 
-def plot_dataset_summary(fig, datasets: list[PulsarProject], results: dict[str, ModelResult], labels: dict[str, str] | None = None) -> None:
+def plot_dataset_summary(
+    fig,
+    datasets: list[PulsarProject],
+    results: dict[str, ModelResult],
+    labels: dict[str, str] | None = None,
+    visibility: dict[str, bool] | None = None,
+) -> None:
+    visibility = visibility or {}
     fig.clear()
     ax = fig.subplots(1, 1)
     apply_dark_theme(fig, [ax])
     for idx, project in enumerate(datasets, start=1):
         color = T.DATASET_COLORS[(idx - 1) % len(T.DATASET_COLORS)]
         if project.observations is not None:
-            shown = _display_indices(project.observations.n)
-            ax.plot(
-                np.asarray(project.observations.mjd)[shown], np.asarray(project.observations.f0)[shown],
-                ".", ms=3, color=color, alpha=0.88, label=f"D{idx} DAT: {project.name}",
+            obs = project.observations
+            shown = _display_indices(obs.n)
+            _errorbar(
+                ax, np.asarray(obs.mjd)[shown], np.asarray(obs.f0)[shown], np.asarray(obs.f0_err)[shown],
+                color=color, label=f"D{idx} DAT: {project.name}", visibility=visibility, alpha=0.88,
             )
         elif project.dataset_id in results:
             result = results[project.dataset_id]
@@ -543,4 +696,4 @@ def plot_dataset_summary(fig, datasets: list[PulsarProject], results: dict[str, 
     ax.set_xlabel("MJD")
     ax.set_ylabel("F0 [Hz]")
     _set_legend(ax)
-    fig.subplots_adjust(right=0.80, top=0.90, bottom=0.12)
+    use_adaptive_layout(fig)

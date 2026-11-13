@@ -6,7 +6,14 @@ from pulsarlab.parsers.par_parser import parse_par
 from pulsarlab.validation_pint import check_par_with_pint, pint_available
 
 
+@pytest.mark.filterwarnings(
+    r"ignore:This platform does not support extended precision floating-point, and PINT will run at reduced precision\.:RuntimeWarning"
+)
 def test_pint_bridge_reports_missing_or_load_status():
+    # PINT emits this known platform-capability warning on Windows, where
+    # NumPy longdouble does not provide more precision than float64. Keep the
+    # warning visible in normal application use; filter only this integration
+    # smoke test because the reduced precision is a PINT/OS limitation.
     model, report = parse_par("PSRJ J0000+0000\nF0 10\nF1 -1e-10\nPEPOCH 58000\n")
     assert model is not None, report.errors
     result = check_par_with_pint(model)

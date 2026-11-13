@@ -6,8 +6,8 @@ accepts common processed-table layouts and reports any unit inference it makes.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 import numpy as np
 

@@ -1,32 +1,44 @@
-# Python caches / packaging
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
-.mypy_cache/
+.hypothesis/
 .ruff_cache/
+.mypy_cache/
 .pyright/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
 
 # Virtual environments
 .venv/
 .venv-*/
 venv/
+.venv-build/
 
-# Build artifacts
+# Build and distribution artifacts (local only)
 build/
 dist/
+wheelhouse/
 *.spec.bak
 
-# IDE / OS
+# IDE / OS files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
-# Local logs
+# Local logs and temporary files
 *.log
+*.tmp
 
-# Astronomical data files
+# Local pulsar timing/science data (never commit user datasets)
 *.par
 *.dat
 *.tim
+
+# Local tool caches
+.cache/

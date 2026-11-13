@@ -7,7 +7,6 @@ ICON = ROOT / "packaging" / "windows" / "pulsarlab.ico"
 
 datas = [
     (str(ROOT / "pulsarlab" / "i18n"), "pulsarlab/i18n"),
-    (str(ROOT / "examples"), "examples"),
 ]
 
 hiddenimports = [

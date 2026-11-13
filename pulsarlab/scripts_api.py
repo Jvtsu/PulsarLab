@@ -6,10 +6,10 @@ import numpy as np
 
 from pulsarlab.core.glitch_model import delta_frequency, delta_phase
 from pulsarlab.core.types import GlitchComponent
-from pulsarlab.parsers.par_parser import parse_par
-from pulsarlab.parsers.dat_parser import parse_dat
 from pulsarlab.datasets.loader import load_pair
 from pulsarlab.engine.pipeline import Pipeline
+from pulsarlab.parsers.dat_parser import parse_dat
+from pulsarlab.parsers.par_parser import parse_par
 
 
 def run_selfcheck() -> None:

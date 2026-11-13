@@ -17,3 +17,15 @@ def test_classify_paths_accepts_supported_files_in_any_order():
 
 def test_classify_paths_ignores_unknown_and_duplicate_paths():
     assert MODULE.classify_paths(["notes.txt", "first.par", "second.par"]) == ("first.par", None, None)
+
+
+def test_selfcheck_runs_headlessly_without_showing_a_dialog(monkeypatch):
+    import sys
+    import types
+
+    called = []
+    fake_api = types.SimpleNamespace(run_selfcheck=lambda: called.append(True))
+    monkeypatch.setitem(sys.modules, "pulsarlab.scripts_api", fake_api)
+    monkeypatch.setattr(sys, "argv", ["PulsarLab.exe", "--selfcheck"])
+    assert MODULE.main() == 0
+    assert called == [True]

@@ -18,7 +18,7 @@ try:  # pragma: no cover - exercised in optional environments
     import astropy.units as u
     from astropy.coordinates import SkyCoord
     from astropy.time import Time
-except Exception:  # pragma: no cover - default lightweight environment
+except (ImportError, OSError):  # pragma: no cover - default lightweight environment
     u = None
     Time = None
     SkyCoord = None
@@ -60,7 +60,7 @@ def validate_mjd_with_astropy(mjd: Any, scale: str = "tdb") -> tuple[bool, str]:
         return True, "Astropy not installed; skipped strict MJD validation."
     try:
         Time(np.asarray(mjd, dtype=float), format="mjd", scale=scale)
-    except Exception as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         return False, f"Astropy could not parse MJD values: {exc}"
     return True, ""
 
@@ -80,7 +80,7 @@ def parse_skycoord_from_par(params: dict[str, Any]) -> tuple[object | None, str]
         return None, ""
     try:
         coord = SkyCoord(str(raj), str(decj), unit=(u.hourangle, u.deg), frame="icrs")
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return None, f"Astropy could not parse RAJ/DECJ coordinates: {exc}"
     return coord, ""
 

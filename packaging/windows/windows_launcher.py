@@ -72,7 +72,13 @@ def _smoke_test() -> int:
 
 
 def main() -> int:
+    headless_check = "--selfcheck" in sys.argv[1:]
     try:
+        if headless_check:
+            from pulsarlab.scripts_api import run_selfcheck
+
+            run_selfcheck()
+            return 0
         if "--smoke-test" in sys.argv[1:]:
             return _smoke_test()
 
@@ -93,7 +99,8 @@ def main() -> int:
             path.write_text(report, encoding="utf-8")
         except Exception:
             pass
-        _show_error(str(exc))
+        if not headless_check:
+            _show_error(str(exc))
         return 1
 
 

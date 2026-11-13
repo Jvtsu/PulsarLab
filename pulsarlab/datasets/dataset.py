@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
-from typing import Any
 import hashlib
 import json
 import math
+from dataclasses import dataclass, field, replace
+from typing import Any
 
 import numpy as np
 
@@ -160,23 +160,23 @@ class PulsarProject:
             return (lo - pad, hi + pad)
         return (self.par.pepoch - 365.25, self.par.pepoch + 365.25)
 
-    def with_visibility(self, visible: bool) -> "PulsarProject":
+    def with_visibility(self, visible: bool) -> PulsarProject:
         return replace(self, visible=bool(visible))
 
-    def with_active_components(self, components: set[int] | None) -> "PulsarProject":
+    def with_active_components(self, components: set[int] | None) -> PulsarProject:
         return replace(self, active_components=None if components is None else frozenset(int(x) for x in components))
 
-    def with_par(self, par: ParModel | None, **metadata: Any) -> "PulsarProject":
+    def with_par(self, par: ParModel | None, **metadata: Any) -> PulsarProject:
         meta = dict(self.metadata)
         meta.update(metadata)
         return replace(self, par=par, metadata=meta)
 
-    def with_observations(self, observations: ObservationTable | None, **metadata: Any) -> "PulsarProject":
+    def with_observations(self, observations: ObservationTable | None, **metadata: Any) -> PulsarProject:
         meta = dict(self.metadata)
         meta.update(metadata)
         return replace(self, observations=observations, metadata=meta)
 
-    def with_toas(self, toas: TOATable | None, **metadata: Any) -> "PulsarProject":
+    def with_toas(self, toas: TOATable | None, **metadata: Any) -> PulsarProject:
         meta = dict(self.metadata)
         meta.update(metadata)
         return replace(self, toas=toas, metadata=meta)

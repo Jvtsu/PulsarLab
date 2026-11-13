@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from math import isfinite
-from typing import Iterable
 
 MJDRange = tuple[float, float]
 
@@ -59,9 +59,6 @@ def apply_mjd_range_to_figure(fig, mjd_range: MJDRange | None) -> int:
     lo, hi = normalise_mjd_range(mjd_range[0], mjd_range[1], None) or mjd_range
     count = 0
     for ax in getattr(fig, "axes", []):
-        try:
-            ax.set_xlim(lo, hi)
-            count += 1
-        except Exception:
-            continue
+        ax.set_xlim(lo, hi)
+        count += 1
     return count

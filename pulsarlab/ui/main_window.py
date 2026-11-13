@@ -6,35 +6,50 @@ renders arrays already computed by the UI-free engine.
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
-from typing import cast
+from pathlib import Path
+from typing import ClassVar, cast
 
 import numpy as np
-
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QApplication, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
-    QPushButton, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-    QWidget, QTextEdit, QCheckBox, QComboBox, QDoubleSpinBox,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
-
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavigationToolbar
-from matplotlib.figure import Figure
 
 from pulsarlab.datasets.loader import ComponentKind, attach_component, load_project
 from pulsarlab.engine.pipeline import Pipeline, ProjectNotComputableError
 from pulsarlab.i18n.dynamic_messages import localize_messages
 from pulsarlab.i18n.translator import Translator
 from pulsarlab.state.app_state import AppState
+from pulsarlab.ui.navigation import ThemedNavigationToolbar as NavigationToolbar
 from pulsarlab.ui.theme import APP_QSS
-from pulsarlab.visualization.range_tools import apply_mjd_range_to_figure, compute_visible_mjd_span, normalise_mjd_range
 from pulsarlab.visualization.matplotlib_plots import (
     plot_dataset_summary,
     plot_glitches_toas,
     plot_residuals,
     plot_spin_analysis,
+)
+from pulsarlab.visualization.range_tools import (
+    apply_mjd_range_to_figure,
+    compute_visible_mjd_span,
+    normalise_mjd_range,
 )
 
 
@@ -138,7 +153,7 @@ class Navigator(QWidget):
 
 
 class Workspace(QWidget):
-    VIEWS = [
+    VIEWS: ClassVar[list[tuple[str, str]]] = [
         ("spin_analysis", "workspace.spin_analysis"),
         ("glitches_toas", "workspace.glitches_toas"),
         ("residuals", "workspace.residuals"),
@@ -267,6 +282,11 @@ class Workspace(QWidget):
         self.mjd_auto.clicked.connect(self._auto_mjd_range)
         for widget in (self.mjd_label, self.mjd_min_label, self.mjd_min, self.mjd_max_label, self.mjd_max, self.mjd_apply, self.mjd_auto):
             mjd_layout.addWidget(widget)
+        self.errorbar_check = QCheckBox(self.translator.tr("lines.errorbars"))
+        self.errorbar_check.setChecked(True)
+        self.errorbar_check.setToolTip(self.translator.tr("lines.errorbars.tip"))
+        self.errorbar_check.stateChanged.connect(lambda _=0: self.schedule_refresh())
+        mjd_layout.addWidget(self.errorbar_check)
         mjd_layout.addStretch(1)
         layout.addWidget(self.mjd_controls)
 
@@ -312,6 +332,8 @@ class Workspace(QWidget):
         ]:
             self.line_checks[key].setText(self.translator.tr(label_key))
         self.toa_window_label.setText(self.translator.tr("toa.window"))
+        self.errorbar_check.setText(self.translator.tr("lines.errorbars"))
+        self.errorbar_check.setToolTip(self.translator.tr("lines.errorbars.tip"))
         self.mjd_label.setText(self.translator.tr("mjd.range"))
         self.mjd_min_label.setText(self.translator.tr("mjd.from"))
         self.mjd_max_label.setText(self.translator.tr("mjd.to"))
@@ -325,12 +347,12 @@ class Workspace(QWidget):
             "zoom": "zoom", "subplots": "subplots", "customize": "customize", "save": "save",
         }
         for action in self.navbar.actions():
-            key = getattr(action, "_pulsarlab_translation_key", None)
+            key = action.data()
             if key is None:
                 raw = action.text().replace("&", "").strip().casefold()
                 key = key_by_english.get(raw)
                 if key is not None:
-                    setattr(action, "_pulsarlab_translation_key", key)
+                    action.setData(key)
             if key is None:
                 continue
             action.setText(self.translator.tr(f"toolbar.{key}"))
@@ -358,6 +380,7 @@ class Workspace(QWidget):
         self.line_controls.setVisible(is_spin)
         self.analysis_controls.setVisible(view == "glitches_toas")
         self.mjd_controls.setVisible(not is_information)
+        self.errorbar_check.setVisible(view in ("spin_analysis", "residuals", "datasets"))
         self.navbar.setVisible(not is_information)
         self.canvas.setVisible(not is_information)
         self.info.setVisible(not is_information)
@@ -376,12 +399,17 @@ class Workspace(QWidget):
         return {key: button.isChecked() for key, button in self.spin_panel_buttons.items()}
 
     def _update_spin_line_control_state(self) -> None:
-        f0_enabled = self.spin_panel_buttons["f0"].isChecked()
-        f1_enabled = self.spin_panel_buttons["f1"].isChecked()
-        for key in ("f0_obs", "f0_model", "f0_noglit"):
-            self.line_checks[key].setEnabled(f0_enabled)
-        for key in ("f1_obs", "f1_model", "f1_noglit"):
-            self.line_checks[key].setEnabled(f1_enabled)
+        buttons = self.spin_panel_buttons
+        f0_enabled = buttons["f0"].isChecked()
+        f1_enabled = buttons["f1"].isChecked()
+        # Observed/model toggles also drive the matching ΔF panel; the
+        # "no glitches" baseline only exists in the F0/F1 panels.
+        for key in ("f0_obs", "f0_model"):
+            self.line_checks[key].setEnabled(f0_enabled or buttons["delta_f0"].isChecked())
+        self.line_checks["f0_noglit"].setEnabled(f0_enabled)
+        for key in ("f1_obs", "f1_model"):
+            self.line_checks[key].setEnabled(f1_enabled or buttons["delta_f1"].isChecked())
+        self.line_checks["f1_noglit"].setEnabled(f1_enabled)
         self.line_checks["glitches"].setEnabled(any(self._spin_panels().values()))
 
     def _mjd_values_changed(self) -> None:
@@ -429,6 +457,11 @@ class Workspace(QWidget):
             "glitches_toas.error": self.translator.tr("plot.glitches_toas.error"),
             "glitches_toas.no_toas": self.translator.tr("plot.glitches_toas.no_toas"),
             "glitches_toas.no_uncertainties": self.translator.tr("plot.glitches_toas.no_uncertainties"),
+            "glitches_toas.window_legend": self.translator.tr("plot.glitches_toas.window_legend"),
+            "glitches_toas.toas_in_window": self.translator.tr("plot.glitches_toas.toas_in_window"),
+            "residuals.f0_ylabel": self.translator.tr("plot.residuals.f0_ylabel"),
+            "residuals.f1_ylabel": self.translator.tr("plot.residuals.f1_ylabel"),
+            "residuals.no_f1": self.translator.tr("plot.residuals.no_f1"),
             "residuals.title": self.translator.tr("plot.residuals.title"),
             "residuals.no_dat": self.translator.tr("plot.residuals.no_dat"),
             "datasets.title": self.translator.tr("plot.datasets.title"),
@@ -441,7 +474,10 @@ class Workspace(QWidget):
         }
 
     def _visibility(self, projects) -> dict[str, bool]:
-        visibility = {"glitches": self.line_checks["glitches"].isChecked()}
+        visibility = {
+            "glitches": self.line_checks["glitches"].isChecked(),
+            "errorbars": self.errorbar_check.isChecked(),
+        }
         computed = [project for project in projects if project.par is not None]
         for idx, _project in enumerate(computed, start=1):
             visibility[f"D{idx} F0 obs"] = self.line_checks["f0_obs"].isChecked()
@@ -450,6 +486,10 @@ class Workspace(QWidget):
             visibility[f"D{idx} F1 obs"] = self.line_checks["f1_obs"].isChecked()
             visibility[f"D{idx} F1 model"] = self.line_checks["f1_model"].isChecked()
             visibility[f"D{idx} F1 no glitches"] = self.line_checks["f1_noglit"].isChecked()
+            visibility[f"D{idx} ΔF0 obs"] = self.line_checks["f0_obs"].isChecked()
+            visibility[f"D{idx} ΔF0 model"] = self.line_checks["f0_model"].isChecked()
+            visibility[f"D{idx} ΔF1 obs"] = self.line_checks["f1_obs"].isChecked()
+            visibility[f"D{idx} ΔF1 model"] = self.line_checks["f1_model"].isChecked()
         return visibility
 
     def refresh(self) -> None:
@@ -502,10 +542,10 @@ class Workspace(QWidget):
             plot_glitches_toas(self.fig, projects, results, labels=labels, toa_window=self.toa_window.value())
             self.info.setPlainText(self._glitch_toa_summary(projects, results))
         elif self._view == "residuals":
-            plot_residuals(self.fig, projects, results, labels=labels)
+            plot_residuals(self.fig, projects, results, labels=labels, visibility=self._visibility(projects))
             self.info.setPlainText(self._residual_summary(projects, results))
         else:
-            plot_dataset_summary(self.fig, projects, results, labels=labels)
+            plot_dataset_summary(self.fig, projects, results, labels=labels, visibility=self._visibility(projects))
             self.info.setPlainText(self._project_summary(projects, results))
         apply_mjd_range_to_figure(self.fig, active_mjd_range)
         self.canvas.draw_idle()
@@ -564,8 +604,15 @@ class Workspace(QWidget):
             elif project.observations is None:
                 lines.append(f"P{idx} {project.name}: {self.translator.tr('summary.model_grid')}={result.model_mjd.size}, {self.translator.tr('project.no_dat')}")
             else:
-                lines.append(f"P{idx} {project.name}: F0 RMS={result.stats_f0.rms:.3e}, {self.translator.tr('summary.mean')}={result.stats_f0.mean:.3e}, n={result.stats_f0.n}")
+                sigma = self._median_sigma(project.observations.f0_err)
+                lines.append(f"P{idx} {project.name}: F0 RMS={result.stats_f0.rms:.3e}, {self.translator.tr('summary.mean')}={result.stats_f0.mean:.3e}, n={result.stats_f0.n}, {self.translator.tr('summary.median_err')} σF0={sigma}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _median_sigma(values) -> str:
+        arr = np.asarray(values, dtype=float)
+        arr = arr[np.isfinite(arr) & (arr > 0)]
+        return "—" if arr.size == 0 else f"{float(np.median(arr)):.2e}"
 
     def _residual_summary(self, projects, results) -> str:
         lines = []
@@ -576,11 +623,46 @@ class Workspace(QWidget):
                 continue
             chi = "—" if result.stats_f0.chi2_red is None else f"{result.stats_f0.chi2_red:.3f}"
             lines.append(f"P{idx} {project.name}: F0 rms={result.stats_f0.rms:.3e}, χ²red={chi}, n={result.stats_f0.n}")
+            lines.extend(self._error_bar_lines(project, result))
         return "\n".join(lines)
+
+    def _error_bar_lines(self, project, result) -> list[str]:
+        """Say how big the DAT error bars are compared with the residual scatter.
+
+        Bars are always drawn, but when σ is far below the scatter they are
+        sub-pixel at full range; this tells the user so instead of leaving them
+        to guess whether the bars exist.
+        """
+        obs = project.observations
+        parts: list[str] = []
+        tiny = False
+        for name, err, resid, scale, unit in (
+            ("F0", obs.f0_err, result.residual_f0, 1.0, "Hz"),
+            ("F1", obs.f1_err, result.residual_f1, 1e15, "10^-15 Hz/s"),
+        ):
+            if err is None or resid is None:
+                continue
+            sigma = np.asarray(err, dtype=float) * scale
+            sigma = sigma[np.isfinite(sigma) & (sigma > 0)]
+            values = np.asarray(resid, dtype=float) * scale
+            values = values[np.isfinite(values)]
+            if sigma.size == 0 or values.size == 0:
+                continue
+            rms = float(np.sqrt(np.mean(values**2)))
+            med = float(np.median(sigma))
+            ratio = med / rms if rms > 0 else float("inf")
+            parts.append(f"{name}: σ={med:.2e} {unit} = {ratio:.1e}×RMS")
+            tiny = tiny or ratio < 0.02
+        if not parts:
+            return []
+        out = [f"    {self.translator.tr('summary.errorbar_size')}: " + "; ".join(parts)]
+        if tiny:
+            out.append(f"    ⚠ {self.translator.tr('summary.errorbar_tiny')}")
+        return out
 
     def _glitch_toa_summary(self, projects, results) -> str:
         lines = [
-            f"{self.translator.tr('glitches_toas.window')}: ±{self.toa_window.value():g} d",
+            f"{self.translator.tr('glitches_toas.window')}: ±{self.toa_window.value():g} d ({self.translator.tr('glitches_toas.window_hint')})",
             " | ".join([
                 self.translator.tr("summary.glitch"), "MJD", "TOAs",
                 self.translator.tr("summary.before_after"), self.translator.tr("summary.nearest_delta"),
@@ -619,7 +701,7 @@ class Workspace(QWidget):
             if project.par is not None:
                 lines.append(f"  {self.translator.tr('datasets.glitch_components')}: {len(project.par.glitches)}")
             span = project.mjd_span
-            if all(value == value for value in span):
+            if np.all(np.isfinite(span)):
                 lines.append(f"  MJD: {span[0]:.6f} {self.translator.tr('summary.to')} {span[1]:.6f}")
             lines.append("")
         return "\n".join(lines).rstrip()

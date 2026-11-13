@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from pulsarlab.core.glitch_model import sum_glitches
+from pulsarlab.core.spin_model import compute_spin
 from pulsarlab.core.types import ParModel
 from pulsarlab.core.units import mjd_to_seconds
-from pulsarlab.core.spin_model import compute_spin
-from pulsarlab.core.glitch_model import sum_glitches
 
 
 def compute_phase(model: ParModel, mjd, include_glitches: bool = True, active_components: set[int] | None = None) -> np.ndarray:

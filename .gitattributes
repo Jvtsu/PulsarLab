@@ -1,0 +1,21 @@
+# Use LF for text files across Windows, Linux and macOS.
+* text=auto eol=lf
+
+# Native Windows command scripts retain CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary resources must never undergo line-ending conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.zip binary
+*.whl binary

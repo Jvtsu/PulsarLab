@@ -18,6 +18,8 @@ No requiere Python instalado en la máquina destino.
 """
 
 from pathlib import Path
+import os
+import re
 
 
 # Directorio raíz del proyecto.
@@ -27,14 +29,16 @@ from pathlib import Path
 ROOT = Path(SPECPATH).resolve().parent.parent
 
 
-# Recursos adicionales que deben copiarse al bundle final
-datas = [
+# CI supplies APP_VERSION; direct local builds read the same project metadata.
+_project_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+_version_match = re.search(r'^version\s*=\s*"([^\"]+)"\s*$', _project_text, re.MULTILINE)
+if _version_match is None:
+    raise RuntimeError("Could not read project version from pyproject.toml")
+APP_VERSION = os.environ.get("APP_VERSION", _version_match.group(1))
 
-    # Datos de ejemplo para pruebas del usuario
-    (
-        str(ROOT / "examples"),
-        "examples"
-    ),
+# Only application-owned package resources are bundled; user PAR/DAT/TIM
+# datasets are deliberately not distributed with the application.
+datas = [
 
     # Archivos de internacionalización
     (
@@ -107,7 +111,7 @@ exe = EXE(
 
     strip=False,
 
-    upx=True,
+    upx=False,
 
     console=False,
 )
@@ -123,17 +127,15 @@ coll = COLLECT(
 
     strip=False,
 
-    upx=True,
+    upx=False,
 
     name="PulsarLab"
 
 )
 
 
-# Paquete .app de macOS. PyInstaller convierte automáticamente un PNG a
-# .icns en tiempo de compilación (usa las herramientas sips/iconutil,
-# preinstaladas en los runners macos-latest), así que se reutiliza el
-# PNG existente en lugar de duplicar un asset .icns.
+# PyInstaller normaliza el PNG a ICNS usando Pillow (instalado como
+# dependencia de Matplotlib) antes de crear el bundle de macOS.
 app = BUNDLE(
 
     coll,
@@ -149,5 +151,7 @@ app = BUNDLE(
         "CFBundleDisplayName": "PulsarLab",
         "NSHighResolutionCapable": True,
         "NSPrincipalClass": "NSApplication",
+        "CFBundleShortVersionString": APP_VERSION,
+        "CFBundleVersion": APP_VERSION,
     },
 )

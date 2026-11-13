@@ -104,12 +104,11 @@ if (-not (Test-Path $VenvPython)) {
 
 & $VenvPython -m pip install --upgrade pip setuptools wheel
 if ($LASTEXITCODE -ne 0) { throw "Falló la preparación de pip." }
-& $VenvPython -m pip install -r requirements-win.txt "pyinstaller>=6.10,<7"
+& $VenvPython -m pip install -r requirements-test.txt "pyinstaller>=6.10,<7"
 if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de dependencias." }
 
 if (-not $SkipTests) {
-    & $VenvPython -m pip install "pytest>=8"
-    & $VenvPython -m pytest -q
+    & $VenvPython -m pytest -q -rs
     if ($LASTEXITCODE -ne 0) { throw "Las pruebas fallaron. No se generará un instalador defectuoso." }
 }
 
@@ -118,8 +117,11 @@ Remove-Item -Recurse -Force -ErrorAction SilentlyContinue build, dist
 & $PyInstaller --noconfirm --clean packaging\windows\PulsarLab-folder.spec
 if ($LASTEXITCODE -ne 0) { throw "Falló la compilación de la carpeta ejecutable." }
 
-& (Join-Path $Root "dist\PulsarLab\PulsarLab.exe") --selfcheck
-if ($LASTEXITCODE -ne 0) { throw "El ejecutable se creó, pero falló su prueba de apertura." }
+$FolderExe = Join-Path $Root "dist\PulsarLab\PulsarLab.exe"
+& $FolderExe --selfcheck
+if ($LASTEXITCODE -ne 0) { throw "El ejecutable se creó, pero falló su self-check." }
+& $FolderExe --smoke-test
+if ($LASTEXITCODE -ne 0) { throw "El ejecutable se creó, pero falló su prueba de interfaz gráfica." }
 
 $PortableZip = Join-Path $Root "dist\PulsarLab-$Version-Windows-x64.zip"
 Compress-Archive -Path (Join-Path $Root "dist\PulsarLab\*") -DestinationPath $PortableZip -Force
@@ -127,8 +129,10 @@ Compress-Archive -Path (Join-Path $Root "dist\PulsarLab\*") -DestinationPath $Po
 if (-not $SkipPortable) {
     & $PyInstaller --noconfirm --clean packaging\windows\PulsarLab-portable.spec
     if ($LASTEXITCODE -ne 0) { throw "Falló la compilación del ejecutable portátil." }
+    & (Join-Path $Root "dist\PulsarLab-Portable.exe") --selfcheck
+    if ($LASTEXITCODE -ne 0) { throw "El ejecutable portátil se creó, pero falló su self-check." }
     & (Join-Path $Root "dist\PulsarLab-Portable.exe") --smoke-test
-    if ($LASTEXITCODE -ne 0) { throw "El ejecutable portátil se creó, pero falló su prueba de apertura." }
+    if ($LASTEXITCODE -ne 0) { throw "El ejecutable portátil se creó, pero falló su prueba de interfaz gráfica." }
 }
 
 if (-not $SkipInstaller) {

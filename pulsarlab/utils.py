@@ -9,8 +9,8 @@ PyInstaller almacena los recursos temporales dentro de sys._MEIPASS,
 por lo que esta función permite resolver rutas correctamente en ambos casos.
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def resource_path(relative_path: str) -> Path:
@@ -31,7 +31,7 @@ def resource_path(relative_path: str) -> Path:
     # Cuando la aplicación está empaquetada con PyInstaller,
     # los recursos se extraen temporalmente dentro de _MEIPASS.
     if hasattr(sys, "_MEIPASS"):
-        base_path = Path(getattr(sys, "_MEIPASS"))
+        base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
 
     # Ejecución normal desde el código fuente.
     else:

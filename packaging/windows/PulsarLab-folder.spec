@@ -30,12 +30,6 @@ ROOT = Path(SPECPATH).resolve().parent.parent
 # Recursos adicionales que deben copiarse al bundle final
 datas = [
 
-    # Datos de ejemplo para pruebas del usuario
-    (
-        str(ROOT / "examples"),
-        "examples"
-    ),
-
     # Archivos de internacionalización
     (
         str(ROOT / "pulsarlab" / "i18n"),
@@ -57,9 +51,9 @@ hiddenimports = [
 
 a = Analysis(
 
-    # Punto de entrada principal de PulsarLab
+    # Launcher gráfico: muestra errores de inicio y deja un registro local.
     [
-        str(ROOT / "pulsarlab" / "cli" / "launch.py")
+        str(ROOT / "packaging" / "windows" / "windows_launcher.py")
     ],
 
     pathex=[
@@ -107,7 +101,7 @@ exe = EXE(
 
     strip=False,
 
-    upx=True,
+    upx=False,
 
     console=False,
 
@@ -126,7 +120,7 @@ coll = COLLECT(
 
     strip=False,
 
-    upx=True,
+    upx=False,
 
     name="PulsarLab"
 

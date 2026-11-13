@@ -1,5 +1,9 @@
 from pathlib import Path
-import tomllib
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 support
+    import tomli as tomllib
 
 import pulsarlab
 
@@ -9,8 +13,7 @@ def test_public_release_version_matches_package_metadata():
     with (root / "pyproject.toml").open("rb") as fh:
         metadata = tomllib.load(fh)
     assert metadata["project"]["name"] == "pulsarlab"
-    assert metadata["project"]["version"] == "1.0.0"
-    assert pulsarlab.__version__ == "1.0.0"
+    assert metadata["project"]["version"] == pulsarlab.__version__
 
 
 def test_active_package_has_no_legacy_branding():

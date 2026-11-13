@@ -27,6 +27,10 @@ El núcleo científico es intencionalmente NumPy-first y libre de interfaz — l
 
 Construido y mantenido por el equipo de PulsarLab.
 
+### Datos del usuario y ejemplos
+
+PulsarLab no distribuye conjuntos de datos `.par`, `.dat` o `.tim`. Carga tus propios archivos desde la aplicación de escritorio o el CLI. Las pruebas automatizadas generan entradas sintéticas pequeñas en directorios temporales, por lo que el repositorio y los instaladores no contienen datos de temporización de usuarios.
+
 ## Uso
 
 Abrir un espacio de trabajo vacío:
@@ -111,7 +115,7 @@ Backend de graficado opcional más rápido (PyQtGraph):
 pip install -r requirements-fastplot.txt
 ```
 
-Este repositorio incluye tanto la aplicación de escritorio como el material de desarrollo: pruebas, scripts, documentación, ejemplos y archivos de empaquetado. Los usuarios finales solo necesitan la aplicación instalada o las dependencias de ejecución; quienes desarrollen pueden usar el repositorio completo para pruebas, validación, benchmarks y construcción de la aplicación de escritorio.
+Este repositorio incluye tanto la aplicación de escritorio como el material de desarrollo: pruebas, scripts, documentación y archivos de empaquetado. No distribuye conjuntos de datos PAR/DAT/TIM de usuarios. Los usuarios finales solo necesitan la aplicación instalada o las dependencias de ejecución; quienes desarrollen pueden usar el repositorio completo para pruebas, validación, benchmarks y construcción de la aplicación de escritorio.
 
 ## Alcance científico
 

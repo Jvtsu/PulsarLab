@@ -45,9 +45,9 @@ class PintNumericalResult:
 def _import_pint():
     try:
         from pint.models import get_model  # type: ignore
-        from pint.toa import get_TOAs  # type: ignore
         from pint.residuals import Residuals  # type: ignore
-    except Exception as exc:  # pragma: no cover - optional dependency
+        from pint.toa import get_TOAs  # type: ignore
+    except ImportError as exc:  # pragma: no cover - optional dependency
         return None, None, None, exc
     return get_model, get_TOAs, Residuals, None
 
@@ -66,7 +66,7 @@ def check_par_with_pint(model_or_path: ParModel | str | Path) -> PintCheckResult
             pint_model = get_model(StringIO(serialize_par(model_or_path)))
         else:
             pint_model = get_model(str(model_or_path))
-    except Exception as load_exc:  # pragma: no cover
+    except Exception as load_exc:  # noqa: BLE001 - translate third-party parser errors into a user-facing result
         return PintCheckResult(True, False, f"PINT could not load this .par: {load_exc}")
     return PintCheckResult(True, True, "PINT loaded the .par model successfully.", str(pint_model)[:1200])
 
@@ -114,7 +114,7 @@ def compare_with_pint(par_path: str | Path, tim_path: str | Path) -> PintNumeric
         pint_residuals = Residuals(pint_toas, pint_model, subtract_mean=True)
         pint_time_residual = _quantity_values(pint_residuals.time_resids, "s")
         pint_mjd = np.asarray(pint_toas.table["mjd_float"], dtype=float)
-    except Exception as compare_exc:
+    except Exception as compare_exc:  # noqa: BLE001 - PINT/clock backends expose several runtime exception types
         return PintNumericalResult(
             True,
             False,
@@ -139,7 +139,7 @@ def compare_with_pint(par_path: str | Path, tim_path: str | Path) -> PintNumeric
         available=True,
         ok=True,
         message="PINT numerical comparison completed.",
-        n_toas=int(len(pint_mjd)),
+        n_toas=len(pint_mjd),
         phase_max_abs_cycles=float(np.nanmax(np.abs(phase_delta))),
         frequency_max_abs_hz=float(np.nanmax(np.abs(pl_frequency - pint_frequency))),
         pint_residual_rms_seconds=float(np.sqrt(np.nanmean(pint_time_residual**2))),

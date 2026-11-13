@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 
+from pulsarlab.core.astro_support import (
+    parse_skycoord_from_par,
+    validate_mjd_with_astropy,
+)
 from pulsarlab.core.types import ObservationTable, ParModel, TOATable
 from pulsarlab.parsers.reports import Report
-from pulsarlab.core.astro_support import parse_skycoord_from_par, validate_mjd_with_astropy
 
 
 def validate_par_model(model: ParModel) -> Report:

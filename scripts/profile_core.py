@@ -1,10 +1,17 @@
+"""Profile the scientific pipeline with user-supplied PAR and DAT files.
+
+The repository intentionally does not ship pulsar datasets. Pass local paths:
+    python scripts/profile_core.py --par /path/to/model.par --dat /path/to/observations.dat
+"""
+
 from __future__ import annotations
 
-import pathlib
+import argparse
+from pathlib import Path
 import sys
 import time
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -12,14 +19,19 @@ from pulsarlab.datasets.loader import load_pair
 from pulsarlab.engine.pipeline import Pipeline
 
 
-def main() -> int:
-    par = ROOT / "examples" / "par_files" / "nicer-paper.par"
-    dat = ROOT / "examples" / "dat_files" / "nicervf_sm5-20.dat"
-    dataset, report = load_pair(par, dat, par.name, dat.name)
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Profile PulsarLab with a local PAR/DAT pair.")
+    parser.add_argument("--par", required=True, type=Path, help="Path to a local .par model")
+    parser.add_argument("--dat", required=True, type=Path, help="Path to a local .dat observations file")
+    args = parser.parse_args(argv)
+
+    dataset, report = load_pair(args.par, args.dat, args.par.name, args.dat.name)
     if dataset is None:
-        print("Failed to load example")
-        print(report.errors)
+        print("Could not load the supplied PAR/DAT pair:")
+        for message in report.errors:
+            print(f"- {message}")
         return 1
+
     pipe = Pipeline()
     for n in (1200, 5000, 20000, 100000):
         t0 = time.perf_counter()

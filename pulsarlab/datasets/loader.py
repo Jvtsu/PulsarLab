@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import Literal
-import uuid
 
 import numpy as np
 
 from pulsarlab.core.types import ObservationTable, ParModel, TOATable
-from pulsarlab.core.validation import validate_observations, validate_par_model, validate_toas
+from pulsarlab.core.validation import (
+    validate_observations,
+    validate_par_model,
+    validate_toas,
+)
 from pulsarlab.datasets.dataset import PulsarProject
 from pulsarlab.parsers.dat_parser import parse_dat
 from pulsarlab.parsers.par_parser import parse_par
